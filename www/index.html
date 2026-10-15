@@ -46,6 +46,10 @@ header button{border:0;background:none;color:var(--ac)}
 #lib li,#toc li{display:flex;align-items:stretch}
 #lib li button:first-child{flex:1;text-align:left;border:0;border-bottom:1px solid var(--ln);border-radius:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #lib li button+button,#toc li button+button{flex:none;width:auto;border:0;border-bottom:1px solid var(--ln);border-radius:0;color:var(--mut)}
+#lib .t{display:block;overflow:hidden;text-overflow:ellipsis}
+#lib .m{display:block;font-size:.8rem;color:var(--mut);margin-top:.15rem}
+#lib .bar{display:block;height:3px;background:var(--ln);border-radius:2px;margin-top:.45rem;overflow:hidden}
+#lib .bar i{display:block;height:100%;background:var(--ac)}
 #toc .tabs{display:flex;gap:.4rem;flex-wrap:wrap}
 #toc .tabs button[aria-pressed=true]{background:var(--ac);color:var(--bg);border-color:var(--ac)}
 #toc small{color:var(--mut)}
@@ -126,9 +130,15 @@ const idb=(m,...a)=>db.then(d=>new Promise((ok,no)=>{const q=d.transaction('b',/
 async function renderLib(){
   const ul=$('#lib');ul.replaceChildren();
   let all=[];try{all=await idb('getAll')}catch(e){}
-  all.sort((a,b)=>b.d-a.d).forEach(r=>{
+  const when=r=>ld('pos:'+r.id).t||r.d;
+  all.sort((a,b)=>when(b)-when(a)).forEach(r=>{
+    const s=ld('pos:'+r.id),p=Number.isFinite(s.p)?s.p:null;
     const li=document.createElement('li'),b=document.createElement('button'),x=document.createElement('button');
-    b.textContent=r.t;b.onclick=()=>openBook(r.f);
+    const t=document.createElement('span'),m=document.createElement('span'),bar=document.createElement('span'),fill=document.createElement('i');
+    t.className='t';t.textContent=r.t;
+    m.className='m';m.textContent=p===null?(Number.isInteger(s.i)?'Em andamento':'Não iniciado'):p>=100?'Concluído':p>0?p+'% lido':'Não iniciado';
+    bar.className='bar';fill.style.width=(p||0)+'%';bar.append(fill);
+    b.append(t,m,bar);b.onclick=()=>openBook(r.f);
     x.textContent='×';x.setAttribute('aria-label','Remover '+r.t);
     x.onclick=async()=>{await idb('delete',r.id);renderLib()};
     li.append(b,x);ul.append(li);
@@ -219,10 +229,14 @@ $('#page').onclick=e=>{
   i===cur?jump(id):show(i,0,id);
 };
 
-function upd(){
+function pos(){
   const r=Math.min(1,scrollY/Math.max(1,R.scrollHeight-innerHeight));
-  $('#pg').textContent=(cur+1)+' / '+spine.length+' · '+Math.floor((cur+r)/spine.length*100)+'%';
-  clearTimeout(saveT);saveT=setTimeout(()=>key&&sv(key,{i:cur,r}),300);
+  return{i:cur,r,p:Math.min(100,Math.floor((cur+r)/spine.length*100)),t:Date.now()};
+}
+function savePos(){clearTimeout(saveT);if(key&&spine.length)sv(key,pos())}
+function upd(){
+  $('#pg').textContent=(cur+1)+' / '+spine.length+' · '+pos().p+'%';
+  clearTimeout(saveT);saveT=setTimeout(savePos,300);
 }
 addEventListener('scroll',()=>{if(!$('#reader').hidden)requestAnimationFrame(upd)},{passive:true});
 
@@ -232,7 +246,7 @@ $('#aa').onclick=()=>{$('#set').hidden=!$('#set').hidden};
 $('#sm').onclick=()=>{P.size=Math.max(14,P.size-2);apply()};
 $('#lg').onclick=()=>{P.size=Math.min(30,P.size+2);apply()};
 document.querySelectorAll('#th button').forEach(b=>b.onclick=()=>{P.theme=b.dataset.t;apply()});
-$('#back').onclick=()=>{upd();$('#reader').hidden=true;$('#set').hidden=true;$('#home').hidden=false;renderLib()};
+$('#back').onclick=()=>{savePos();$('#reader').hidden=true;$('#set').hidden=true;$('#home').hidden=false;renderLib()};
 $('#tocx').onclick=()=>{$('#toc').hidden=true};
 document.querySelectorAll('#fn button').forEach(b=>b.onclick=()=>{P.font=b.dataset.f;apply()});
 
